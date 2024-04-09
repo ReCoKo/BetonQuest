@@ -6,8 +6,10 @@ import org.betonquest.betonquest.api.CountingObjective;
 import org.betonquest.betonquest.api.profiles.OnlineProfile;
 import org.betonquest.betonquest.api.profiles.Profile;
 import org.betonquest.betonquest.exceptions.InstructionParseException;
+import org.betonquest.betonquest.exceptions.QuestRuntimeException;
 import org.betonquest.betonquest.utils.BlockSelector;
 import org.betonquest.betonquest.utils.PlayerConverter;
+import org.betonquest.betonquest.utils.location.CompoundLocation;
 import org.bukkit.Bukkit;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -28,12 +30,20 @@ public class BlockObjective extends CountingObjective implements Listener {
 
     private final boolean noSafety;
 
+    private final CompoundLocation location;
+
+    private final boolean hasLocation;
+
     public BlockObjective(final Instruction instruction) throws InstructionParseException {
         super(instruction);
         selector = instruction.getBlockSelector();
         exactMatch = instruction.hasArgument("exactMatch");
         targetAmount = instruction.getVarNum();
         noSafety = instruction.hasArgument("noSafety");
+        final String stringlocation = instruction.getOptional("loc", "false");
+        location = "false".equalsIgnoreCase(stringlocation) ? null : new CompoundLocation(instruction.getPackage(), stringlocation);
+        hasLocation = !"false".equalsIgnoreCase(stringlocation);
+
     }
 
     @Override
@@ -42,9 +52,12 @@ public class BlockObjective extends CountingObjective implements Listener {
     }
 
     @EventHandler(ignoreCancelled = true, priority = EventPriority.HIGHEST)
-    public void onBlockPlace(final BlockPlaceEvent event) {
+    public void onBlockPlace(final BlockPlaceEvent event) throws QuestRuntimeException {
         final OnlineProfile onlineProfile = PlayerConverter.getID(event.getPlayer());
         if (containsPlayer(onlineProfile) && selector.match(event.getBlock(), exactMatch) && checkConditions(onlineProfile)) {
+            if (hasLocation && !event.getBlock().getLocation().equals(location.getLocation(onlineProfile))) {
+                return;
+            }
             if (getCountingData(onlineProfile).getDirectionFactor() < 0 && noSafety) {
                 return;
             }
@@ -53,9 +66,12 @@ public class BlockObjective extends CountingObjective implements Listener {
     }
 
     @EventHandler(ignoreCancelled = true, priority = EventPriority.HIGHEST)
-    public void onBlockBreak(final BlockBreakEvent event) {
+    public void onBlockBreak(final BlockBreakEvent event) throws QuestRuntimeException {
         final OnlineProfile onlineProfile = PlayerConverter.getID(event.getPlayer());
         if (containsPlayer(onlineProfile) && selector.match(event.getBlock(), exactMatch) && checkConditions(onlineProfile)) {
+            if (hasLocation && !event.getBlock().getLocation().equals(location.getLocation(onlineProfile))) {
+                return;
+            }
             if (getCountingData(onlineProfile).getDirectionFactor() > 0 && noSafety) {
                 return;
             }
